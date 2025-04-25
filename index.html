@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clasificador de Aves</title>
+    <link rel="icon" type="image/png" href="favicon-32x32.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #resultado {
+            font-weight: bold;
+            font-size: 2rem;
+            text-align: center;
+        }
+        #modelo {
+            font-size: 1.2rem;
+            text-align: center;
+            margin-top: 10px;
+            color: #0dcaf0 !important;
+        }
+        body {
+            background-color: #121212;
+            color: #ffffff;
+        }
+        .btn-dark-mode {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        body.light-mode {
+            background-color: #ffffff;
+            color: #212529;
+        }
+        .light-mode .btn-dark-mode {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+        .footer {
+            margin-top: 3rem;
+            padding: 1.5rem 0;
+            text-align: center;
+            border-top: 1px solid #333;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+<main>
+    <div class="px-4 py-2 my-2 text-center border-bottom">
+        <div class="text-end">
+            <button id="darkModeToggle" class="btn btn-sm btn-dark-mode" onclick="toggleDarkMode()">
+                <span id="darkModeIcon">☀️</span> Modo Claro
+            </button>
+        </div>
+        <h1 class="display-5 fw-bold">Clasificador de Aves</h1>
+        <p class="lead mb-0">Clasifica imágenes de aves usando MobileNet y la cámara web</p>
+    </div>
+
+    <div class="container mt-4">
+        <div class="text-center mb-3">
+            <button class="btn btn-primary" onclick="cargarModelo();">Cargar Modelo MobileNet</button>
+        </div>
+
+        <div class="row">
+            <div class="col-12 col-md-4 offset-md-4 text-center">
+                <video id="video" playsinline autoplay style="width: 1px;"></video>
+                <button class="btn btn-info mb-2" onclick="switchCamera()">Cambiar Cámara</button>
+                <canvas id="canvas" width="400" height="400" style="max-width: 100%;"></canvas>
+                <div id="resultado">Esperando predicción...</div>
+                <div id="modelo">Modelo no cargado</div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="footer">
+    <div class="container">
+        <a href="https://github.com/Jenn-LG/clasificador-aves" class="github-link" target="_blank" rel="noopener noreferrer">
+            Ver código en GitHub
+        </a>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+<script>
+    let modelo = null;
+    const tamano = 224;
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let currentStream = null;
+    let currentFacingMode = "user";
+
+    async function cargarModelo() {
+        const ruta = "carpeta_salida/model.json";
+        modelo = await tf.loadLayersModel(ruta + "?timestamp=" + Date.now());
+        document.getElementById("modelo").innerHTML = "Modelo cargado: MobileNet";
+        console.log("Modelo MobileNet cargado");
+    }
+
+    window.onload = function() {
+        mostrarCamara();
+        checkDarkModePreference();
+    };
+
+    function mostrarCamara() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+        }
+
+        const opciones = {
+            audio: false,
+            video: {
+                width: tamano,
+                height: tamano,
+                facingMode: currentFacingMode
+            }
+        };
+
+        navigator.mediaDevices.getUserMedia(opciones)
+            .then(function(stream) {
+                currentStream = stream;
+                video.srcObject = stream;
+                procesarCamara();
+                predecir();
+            })
+            .catch(function(err) {
+                console.error("Error al acceder a la cámara:", err);
+                if (currentFacingMode === "environment") {
+                    currentFacingMode = "user";
+                    mostrarCamara();
+                } else {
+                    alert("No se pudo acceder a la cámara");
+                }
+            });
+    }
+
+    function procesarCamara() {
+        ctx.drawImage(video, 0, 0, tamano, tamano);
+        setTimeout(procesarCamara, 20);
+    }
+
+    function predecir() {
+        if (modelo != null) {
+            const tensor = tf.browser.fromPixels(canvas)
+                .resizeNearestNeighbor([224, 224])
+                .toFloat()
+                .div(255.0)
+                .expandDims();
+
+            const resultado = modelo.predict(tensor);
+            resultado.array().then(arr => {
+                const index = arr[0].indexOf(Math.max(...arr[0]));
+                document.getElementById("resultado").innerHTML = "Ave clase #" + index;
+            });
+        }
+
+        setTimeout(predecir, 1000);
+    }
+
+    function toggleDarkMode() {
+        const body = document.body;
+        const icon = document.getElementById('darkModeIcon');
+        const button = document.getElementById('darkModeToggle');
+
+        if (body.classList.contains('dark-mode')) {
+            body.classList.replace('dark-mode', 'light-mode');
+            icon.textContent = '🌙';
+            button.textContent = '🌙 Modo Oscuro';
+            localStorage.setItem('darkMode', 'disabled');
+        } else {
+            body.classList.replace('light-mode', 'dark-mode');
+            icon.textContent = '☀️';
+            button.textContent = '☀️ Modo Claro';
+            localStorage.setItem('darkMode', 'enabled');
+        }
+    }
+
+    function checkDarkModePreference() {
+        const mode = localStorage.getItem('darkMode');
+        const icon = document.getElementById('darkModeIcon');
+        const button = document.getElementById('darkModeToggle');
+
+        if (mode === 'disabled') {
+            document.body.classList.replace('dark-mode', 'light-mode');
+            icon.textContent = '🌙';
+            button.textContent = '🌙 Modo Oscuro';
+        } else {
+            document.body.classList.add('dark-mode');
+            icon.textContent = '☀️';
+            button.textContent = '☀️ Modo Claro';
+        }
+    }
+
+    function switchCamera() {
+        currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+        mostrarCamara();
+    }
+</script>
+</body>
+</html>
