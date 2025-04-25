@@ -3,13 +3,15 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <title>Clasificador de Aves</title>
-    <link rel="icon" type="image/png" href="favicon-32x32.png">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         #resultado {
             font-weight: bold;
-            font-size: 2rem;
+            font-size: 2.5rem;
             text-align: center;
         }
         #modelo {
@@ -18,9 +20,13 @@
             margin-top: 10px;
             color: #0dcaf0 !important;
         }
+
         body {
             background-color: #121212;
             color: #ffffff;
+        }
+        .border-bottom {
+            border-bottom-color: #333 !important;
         }
         .btn-dark-mode {
             background-color: #f8f9fa;
@@ -29,6 +35,12 @@
         body.light-mode {
             background-color: #ffffff;
             color: #212529;
+        }
+        .light-mode .border-bottom {
+            border-bottom-color: #dee2e6 !important;
+        }
+        .light-mode #modelo {
+            color: blue !important;
         }
         .light-mode .btn-dark-mode {
             background-color: #212529;
@@ -40,160 +52,208 @@
             text-align: center;
             border-top: 1px solid #333;
         }
+        .light-mode .footer {
+            border-top-color: #dee2e6;
+        }
+        .github-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: inherit;
+            text-decoration: none;
+        }
+        .github-link:hover {
+            text-decoration: underline;
+        }
+        .logo-container {
+            min-height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .logo-fallback {
+            display: none;
+            width: 100px;
+            height: 100px;
+            background-color: #f8f9fa;
+            border-radius: 50%;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: #212529;
+        }
+        .light-mode .logo-fallback {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
     </style>
 </head>
 <body class="dark-mode">
-<main>
-    <div class="px-4 py-2 my-2 text-center border-bottom">
-        <div class="text-end">
-            <button id="darkModeToggle" class="btn btn-sm btn-dark-mode" onclick="toggleDarkMode()">
-                <span id="darkModeIcon">☀️</span> Modo Claro
-            </button>
-        </div>
-        <h1 class="display-5 fw-bold">Clasificador de Aves</h1>
-        <p class="lead mb-0">Clasifica imágenes de aves usando MobileNet y la cámara web</p>
-    </div>
+    <main>
+        <div class="px-4 py-2 my-2 text-center border-bottom">
+            <div class="text-end">
+                <button id="darkModeToggle" class="btn btn-sm btn-dark-mode" onclick="toggleDarkMode()">
+                    <span id="darkModeIcon">☀️</span> Modo Claro
+                </button>
+            </div>
 
-    <div class="container mt-4">
-        <div class="text-center mb-3">
-            <button class="btn btn-primary" onclick="cargarModelo();">Cargar Modelo MobileNet</button>
-        </div>
+            <div class="logo-container">
+                <img class="d-block mx-auto mb-2"
+                     src="logo_aves.png"
+                     alt="Logo Aves"
+                     width="100"
+                     height="100"
+                     onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
+                <div id="logo-fallback" class="logo-fallback mx-auto mb-2">AVES</div>
+            </div>
 
-        <div class="row">
-            <div class="col-12 col-md-4 offset-md-4 text-center">
-                <video id="video" playsinline autoplay style="width: 1px;"></video>
-                <button class="btn btn-info mb-2" onclick="switchCamera()">Cambiar Cámara</button>
-                <canvas id="canvas" width="400" height="400" style="max-width: 100%;"></canvas>
-                <div id="resultado">Esperando predicción...</div>
-                <div id="modelo">Modelo no cargado</div>
+            <h1 class="display-5 fw-bold">Clasificador de Aves</h1>
+            <div class="col-lg-6 mx-auto">
+                <p class="lead mb-0">Detecta especies de aves con MobileNetV2 usando tu cámara web</p>
             </div>
         </div>
-    </div>
-</main>
 
-<footer class="footer">
-    <div class="container">
-        <a href="https://github.com/Jenn-LG/clasificador-aves" class="github-link" target="_blank" rel="noopener noreferrer">
-            Ver código en GitHub
-        </a>
-    </div>
-</footer>
+        <div class="container mt-5">
+            <div class="row text-center">
+                <div class="col-12">
+                    <button class="btn btn-primary mb-3" onclick="cargarModelo();">Cargar Modelo MobileNet</button>
+                </div>
+            </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
-<script>
-    let modelo = null;
-    const tamano = 224;
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    let currentStream = null;
-    let currentFacingMode = "user";
+            <div class="row">
+                <div class="col-12 col-md-4 offset-md-4 text-center">
+                    <video id="video" playsinline autoplay style="width: 1px;"></video>
+                    <button class="btn btn-info mb-2" id="switchCamera" onclick="switchCamera()">
+                        Cambiar Cámara
+                    </button>
+                    <canvas id="canvas" width="400" height="400" style="max-width: 100%;"></canvas>
+                    <canvas id="otrocanvas" width="224" height="224" style="display: none"></canvas>
+                    <div id="resultado">Esperando modelo...</div>
+                    <div id="modelo">Modelo no cargado</div>
+                </div>
+            </div>
+        </div>
+    </main>
 
-    async function cargarModelo() {
-        const ruta = "carpeta_salida/model.json";
-        modelo = await tf.loadLayersModel(ruta + "?timestamp=" + Date.now());
-        document.getElementById("modelo").innerHTML = "Modelo cargado: MobileNet";
-        console.log("Modelo MobileNet cargado");
-    }
+    <footer class="footer">
+        <div class="container">
+            <a href="https://github.com/Jenn-LG/clasificador-aves" class="github-link" target="_blank" rel="noopener noreferrer">
+                <svg height="20" width="20" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0a8 8 0 0 0-2.53 15.59c.4.08.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2 .37-2.69-.49-2.85-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.06-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+                Ver código en GitHub
+            </a>
+        </div>
+    </footer>
 
-    window.onload = function() {
-        mostrarCamara();
-        checkDarkModePreference();
-    };
+    <!-- TensorFlow.js más reciente (versión 4.x recomendada) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
 
-    function mostrarCamara() {
-        if (currentStream) {
-            currentStream.getTracks().forEach(track => track.stop());
+    <script type="text/javascript">
+        var modelo = null;
+        var video = document.getElementById("video");
+        var canvas = document.getElementById("canvas");
+        var otrocanvas = document.getElementById("otrocanvas");
+        var ctx = canvas.getContext("2d");
+        var currentStream = null;
+        var currentFacingMode = "user";
+
+        async function cargarModelo() {
+            try {
+                modelo = await tf.loadLayersModel("/carpeta_salida/model.json");
+                document.getElementById("modelo").innerHTML = "Modelo cargado: MobileNet";
+                predecir();
+            } catch (error) {
+                console.error("Error al cargar modelo:", error);
+                alert("Error al cargar el modelo.");
+            }
         }
 
-        const opciones = {
-            audio: false,
-            video: {
-                width: tamano,
-                height: tamano,
-                facingMode: currentFacingMode
-            }
+        window.onload = function () {
+            mostrarCamara();
+            checkDarkModePreference();
+            setTimeout(function () {
+                var logo = document.querySelector('.logo-container img');
+                if (!logo.complete || logo.naturalWidth === 0) {
+                    logo.style.display = 'none';
+                    document.getElementById('logo-fallback').style.display = 'flex';
+                }
+            }, 1000);
         };
 
-        navigator.mediaDevices.getUserMedia(opciones)
-            .then(function(stream) {
+        function mostrarCamara() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            navigator.mediaDevices.getUserMedia({
+                video: { width: 400, height: 400, facingMode: currentFacingMode },
+                audio: false
+            }).then(function (stream) {
                 currentStream = stream;
                 video.srcObject = stream;
                 procesarCamara();
-                predecir();
-            })
-            .catch(function(err) {
-                console.error("Error al acceder a la cámara:", err);
-                if (currentFacingMode === "environment") {
-                    currentFacingMode = "user";
-                    mostrarCamara();
-                } else {
-                    alert("No se pudo acceder a la cámara");
-                }
-            });
-    }
-
-    function procesarCamara() {
-        ctx.drawImage(video, 0, 0, tamano, tamano);
-        setTimeout(procesarCamara, 20);
-    }
-
-    function predecir() {
-        if (modelo != null) {
-            const tensor = tf.browser.fromPixels(canvas)
-                .resizeNearestNeighbor([224, 224])
-                .toFloat()
-                .div(255.0)
-                .expandDims();
-
-            const resultado = modelo.predict(tensor);
-            resultado.array().then(arr => {
-                const index = arr[0].indexOf(Math.max(...arr[0]));
-                document.getElementById("resultado").innerHTML = "Ave clase #" + index;
+            }).catch(function (err) {
+                console.error("Error cámara:", err);
+                alert("No se pudo acceder a la cámara.");
             });
         }
 
-        setTimeout(predecir, 1000);
-    }
-
-    function toggleDarkMode() {
-        const body = document.body;
-        const icon = document.getElementById('darkModeIcon');
-        const button = document.getElementById('darkModeToggle');
-
-        if (body.classList.contains('dark-mode')) {
-            body.classList.replace('dark-mode', 'light-mode');
-            icon.textContent = '🌙';
-            button.textContent = '🌙 Modo Oscuro';
-            localStorage.setItem('darkMode', 'disabled');
-        } else {
-            body.classList.replace('light-mode', 'dark-mode');
-            icon.textContent = '☀️';
-            button.textContent = '☀️ Modo Claro';
-            localStorage.setItem('darkMode', 'enabled');
+        function procesarCamara() {
+            ctx.drawImage(video, 0, 0, 400, 400);
+            setTimeout(procesarCamara, 20);
         }
-    }
 
-    function checkDarkModePreference() {
-        const mode = localStorage.getItem('darkMode');
-        const icon = document.getElementById('darkModeIcon');
-        const button = document.getElementById('darkModeToggle');
+        async function predecir() {
+            if (modelo) {
+                var ctx2 = otrocanvas.getContext("2d");
+                ctx2.drawImage(video, 0, 0, 224, 224);
 
-        if (mode === 'disabled') {
-            document.body.classList.replace('dark-mode', 'light-mode');
-            icon.textContent = '🌙';
-            button.textContent = '🌙 Modo Oscuro';
-        } else {
-            document.body.classList.add('dark-mode');
-            icon.textContent = '☀️';
-            button.textContent = '☀️ Modo Claro';
+                let img = tf.browser.fromPixels(otrocanvas).toFloat().div(255).expandDims();
+                let pred = await modelo.predict(img).data();
+
+                // Para un solo output (softmax o argmax)
+                let clase = pred.indexOf(Math.max(...pred));
+                document.getElementById("resultado").innerHTML = `Clase: ${clase}`;
+            }
+            setTimeout(predecir, 1000);
         }
-    }
 
-    function switchCamera() {
-        currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-        mostrarCamara();
-    }
-</script>
+        function toggleDarkMode() {
+            const body = document.body;
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            const darkModeIcon = document.getElementById('darkModeIcon');
+
+            if (body.classList.contains('dark-mode')) {
+                body.classList.replace('dark-mode', 'light-mode');
+                darkModeIcon.textContent = '🌙';
+                darkModeToggle.textContent = '🌙 Modo Oscuro';
+                localStorage.setItem('darkMode', 'disabled');
+            } else {
+                body.classList.replace('light-mode', 'dark-mode');
+                darkModeIcon.textContent = '☀️';
+                darkModeToggle.textContent = '☀️ Modo Claro';
+                localStorage.setItem('darkMode', 'enabled');
+            }
+        }
+
+        function checkDarkModePreference() {
+            const darkMode = localStorage.getItem('darkMode');
+            const body = document.body;
+
+            if (darkMode === 'disabled') {
+                body.classList.add('light-mode');
+                document.getElementById('darkModeIcon').textContent = '🌙';
+                document.getElementById('darkModeToggle').textContent = '🌙 Modo Oscuro';
+            } else {
+                body.classList.add('dark-mode');
+                document.getElementById('darkModeIcon').textContent = '☀️';
+                document.getElementById('darkModeToggle').textContent = '☀️ Modo Claro';
+            }
+        }
+
+        function switchCamera() {
+            currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+            mostrarCamara();
+        }
+    </script>
 </body>
 </html>
