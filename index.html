@@ -31,17 +31,9 @@
     }
     #resultado {
       font-weight: bold;
-      font-size: 3rem;
+      font-size: 2rem;
       text-align: center;
-    }
-    #modelo {
-      font-size: 1.2rem;
-      text-align: center;
-      margin-top: 10px;
-      color: #0dcaf0 !important;
-    }
-    .light-mode #modelo {
-      color: blue !important;
+      margin-top: 1rem;
     }
     .footer {
       margin-top: 3rem;
@@ -103,19 +95,17 @@
 
     <h1 class="display-5 fw-bold">Clasificador de Aves</h1>
     <div class="col-lg-6 mx-auto">
-      <p class="lead mb-0">Clasificación usando MobileNet y TensorFlow.js</p>
+      <p class="lead mb-0">Clasificación usando MobileNet (servidor backend)</p>
     </div>
   </div>
 
   <div class="container mt-5">
     <div class="row">
       <div class="col-12 col-md-4 offset-md-4 text-center">
-        <video id="video" playsinline autoplay style="width: 1px;"></video>
-        <button class="btn btn-info mb-2" onclick="switchCamera()">Cambiar Cámara</button>
-        <canvas id="canvas" width="400" height="400" style="max-width: 100%;"></canvas>
-        <canvas id="otrocanvas" width="100" height="100" style="display: none;"></canvas>
-        <div id="resultado">Cargando modelo...</div>
-        <div id="modelo">Modelo no cargado</div>
+        <video id="video" playsinline autoplay width="224" height="224"></video><br>
+        <button class="btn btn-info my-2" onclick="switchCamera()">Cambiar Cámara</button>
+        <button class="btn btn-success my-2" onclick="capturarYPredecir()">Predecir</button>
+        <div id="resultado">Esperando...</div>
       </div>
     </div>
   </div>
@@ -142,74 +132,46 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <script>
-let modelo = null;
-let tamano = 400;
 let video = document.getElementById("video");
-let canvas = document.getElementById("canvas");
-let otrocanvas = document.getElementById("otrocanvas");
-let ctx = canvas.getContext("2d");
 let currentStream = null;
 let currentFacingMode = "user";
+const canvas = document.createElement("canvas");
+canvas.width = 224;
+canvas.height = 224;
 
-async function cargarModelo() {
-  try {
-    modelo = await tf.loadLayersModel("carpeta_salida/model.json");
-    document.getElementById("modelo").innerText = "Modelo cargado: MobileNet";
-    document.getElementById("resultado").innerText = "Modelo listo";
-  } catch (error) {
-    console.error("Error cargando modelo:", error);
-    document.getElementById("resultado").innerText = "Error cargando modelo";
-  }
-}
+navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } })
+  .then(stream => { currentStream = stream; video.srcObject = stream; })
+  .catch(err => alert("No se pudo acceder a la cámara."));
 
-function mostrarCamara() {
+function switchCamera() {
+  currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
   if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-  navigator.mediaDevices.getUserMedia({
-    video: { width: tamano, height: tamano, facingMode: currentFacingMode },
-    audio: false
-  }).then(stream => {
-    currentStream = stream;
-    video.srcObject = stream;
-    procesarCamara();
-    predecir();
-  }).catch(err => {
-    console.error("Error con la cámara:", err);
-    document.getElementById("resultado").innerText = "No se pudo acceder a la cámara.";
-  });
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } })
+    .then(stream => { currentStream = stream; video.srcObject = stream; })
+    .catch(err => alert("No se pudo acceder a la cámara."));
 }
 
-function procesarCamara() {
-  ctx.drawImage(video, 0, 0, tamano, tamano);
-  setTimeout(procesarCamara, 20);
-}
+async function capturarYPredecir() {
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, 224, 224);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg"));
+  const formData = new FormData();
+  formData.append("file", blob, "frame.jpg");
 
-function predecir() {
-  if (modelo) {
-    const ctx2 = otrocanvas.getContext("2d");
-    ctx2.drawImage(video, 0, 0, 100, 100);
-    const imgData = ctx2.getImageData(0, 0, 100, 100);
-    const arr = [];
-    let fila = [];
+  document.getElementById("resultado").textContent = "Enviando imagen...";
 
-    for (let i = 0; i < imgData.data.length; i += 4) {
-      const r = imgData.data[i] / 255;
-      const g = imgData.data[i + 1] / 255;
-      const b = imgData.data[i + 2] / 255;
-      fila.push([r, g, b]);
-      if (fila.length === 100) {
-        arr.push(fila);
-        fila = [];
-      }
-    }
-
-    const tensor = tf.tensor4d([arr]);
-    const resultado = modelo.predict(tensor).dataSync();
-    const pred = resultado.indexOf(Math.max(...resultado));
-    document.getElementById("resultado").innerText = "Predicción: Ave " + pred;
+  try {
+    const res = await fetch("https://TU_BACKEND_URL/predict", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    document.getElementById("resultado").textContent = "Predicción: " + data.clase;
+  } catch (err) {
+    document.getElementById("resultado").textContent = "Error al obtener predicción";
+    console.error(err);
   }
-  setTimeout(predecir, 300);
 }
 
 function toggleDarkMode() {
@@ -228,14 +190,7 @@ function toggleDarkMode() {
   }
 }
 
-function switchCamera() {
-  currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-  mostrarCamara();
-}
-
 window.onload = function () {
-  mostrarCamara();
-  cargarModelo();
   setTimeout(() => {
     const logo = document.querySelector('.logo-container img');
     if (!logo.complete || logo.naturalWidth === 0) {
